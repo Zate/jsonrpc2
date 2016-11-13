@@ -34,13 +34,25 @@ func LogMessages(log *log.Logger) ConnOpt {
 		)
 
 		OnRecv(func(req *Request, resp *Response) {
+			log.Printf("OnRecv - req: %+v: resp: %+v", req, resp)
+
 			switch {
 			case req != nil && resp == nil:
 				mu.Lock()
 				reqMethods[req.ID] = req.Method
 				mu.Unlock()
 
-				params, _ := json.Marshal(req.Params)
+				params, err := json.Marshal(req.Params)
+				if err != nil {
+					log.Printf("OnRecv - req: %+v: req.Params: %+v, err: %v", req, resp, err)
+					mu.Lock()
+					delete(reqMethods, req.ID)
+					mu.Unlock()
+					return
+				}
+
+				log.Printf("OnRecv - req: %+v: req.Params: %+v", req, req.Params)
+				log.Printf("OnRecv - req: %+v: Params: %+v", req, params)
 				if req.Notif {
 					log.Printf("--> notif: %s: %s", req.Method, params)
 				} else {
@@ -65,6 +77,8 @@ func LogMessages(log *log.Logger) ConnOpt {
 			}
 		})(c)
 		OnSend(func(req *Request, resp *Response) {
+			log.Printf("OnSend - req: %+v: resp: %+v", req, resp)
+
 			switch {
 			case req != nil:
 				params, _ := json.Marshal(req.Params)

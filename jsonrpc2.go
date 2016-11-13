@@ -277,6 +277,8 @@ var ErrClosed = errors.New("jsonrpc2: connection is closed")
 // NewClient consumes conn, so you should call Close on the returned
 // client not on the given conn.
 func NewConn(ctx context.Context, conn io.ReadWriteCloser, h Handler, opt ...ConnOpt) *Conn {
+	log.Printf("langserver-go: NewConn - ctx: %p conn: %p, h: %p", &ctx, &conn, &h)
+
 	c := &Conn{
 		conn:       conn,
 		w:          bufio.NewWriter(conn),
@@ -325,11 +327,15 @@ func (c *Conn) send(ctx context.Context, m *anyMessage, wait bool) (*call, error
 	}
 	c.mu.Unlock()
 
+	log.Printf("langserver-go: jsonrpc2.send - anyMessage: %+v", m)
+
 	if c.onSend != nil {
 		switch {
 		case m.request != nil:
+			log.Printf("langserver-go: jsonrpc2.send m.request - anyMessage: %+v", m.request)
 			c.onSend(m.request, nil)
 		case m.response != nil:
+			log.Printf("langserver-go: jsonrpc2.send m.response - anyMessage: %+v", m.response)
 			c.onSend(nil, m.response)
 		}
 	}
@@ -432,27 +438,41 @@ func (c *Conn) DisconnectNotify() <-chan struct{} {
 }
 
 func (c *Conn) readMessages(ctx context.Context, r *bufio.Reader) {
+	log.Printf("langserver-go: readMessages - ctx: %p, r: %p", &ctx, r)
+
 	var err error
 	for err == nil {
 		var m anyMessage
 
 		var n uint32
 		n, err = readHeaderContentLength(r)
+		log.Printf("langserver-go: readMessages readHeaderContentLength - ctx: %p, r: %p, n: %v", &ctx, r, n)
 		if err == nil {
 			err = json.NewDecoder(io.LimitReader(r, int64(n))).Decode(&m)
 		}
 		if err != nil {
+			log.Printf("langserver-go: readMessages - error - ctx: %p, r: %p, err: %v", &ctx, r, err)
 			break
 		}
 
+		log.Printf("langserver-go: readMessages - ctx: %p, r: %p, m: %v, m: %+v", &ctx, r, m, m)
 		switch {
 		case m.request != nil:
 			if c.onRecv != nil {
+				log.Printf("langserver-go: readMessages - m.request c.onRecv - m.request: %+v", m.request)
 				c.onRecv(m.request, nil)
 			}
+			log.Printf("langserver-go: readMessages - m.request c.h.Handle - m.request: %+v", m.request)
 			go c.h.Handle(ctx, c, m.request)
+			//// TODO: would be nice to be able to read result of c.h.Handle()...
+			// if err != nil {
+			// 	log.Printf("langserver-go: readMessages - c.h.Handle error - m.request: %+v, err: %v", m.request, err)
+			// 	break
+			// }
 
 		case m.response != nil:
+			log.Printf("langserver-go: readMessages - m.response c.h.Handle - m.request: %+v", m.response)
+
 			resp := m.response
 			if resp != nil {
 				id := resp.ID
@@ -615,7 +635,10 @@ func (m *anyMessage) UnmarshalJSON(data []byte) error {
 func readHeaderContentLength(r *bufio.Reader) (contentLength uint32, err error) {
 	for {
 		line, err := r.ReadString('\r')
+		log.Printf("langserver-go: readHeaderContentLength - r: %p, line: '%v'", r, line)
+
 		if err != nil {
+			log.Printf("langserver-go: readHeaderContentLength - r: %p, line: '%v', err: %v", r, line, err)
 			return 0, err
 		}
 		b, err := r.ReadByte()
@@ -632,12 +655,21 @@ func readHeaderContentLength(r *bufio.Reader) (contentLength uint32, err error) 
 			line = strings.TrimPrefix(line, "Content-Length: ")
 			line = strings.TrimSpace(line)
 			n, err := strconv.ParseUint(line, 10, 32)
+			log.Printf("langserver-go: readHeaderContentLength - line: %v, n: %v err: %v", line, n, err)
+
 			if err != nil {
 				return 0, err
 			}
 			contentLength = uint32(n)
 		}
 	}
+
+	// bytes, err := ioutil.ReadAll(r)
+	// if err != nil {
+	// 	log.Printf("langserver-go: readHeaderContentLength io.ReadAll error - r: %p, err: %v", r, err)
+	// }
+	// log.Printf("langserver-go: readHeaderContentLength io.ReadAll - r: %p, bytes: %v", r, string(bytes))
+
 	if contentLength == 0 {
 		err = fmt.Errorf("jsonrpc2: no Content-Length header found")
 	}
@@ -647,11 +679,13 @@ func readHeaderContentLength(r *bufio.Reader) (contentLength uint32, err error) 
 func marshalHeadersAndBody(w io.Writer, v interface{}) error {
 	body, err := json.Marshal(v)
 	if err != nil {
+		log.Printf("langserver-go: marshalHeadersAndBody - err: %v, body: %v", err, body)
 		return err
 	}
 	fmt.Fprintf(w, "Content-Length: %d\r\n", len(body))
 	fmt.Fprint(w, "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n")
-	_, err = w.Write(body)
+	n, err := w.Write(body)
+	log.Printf("langserver-go: marshalHeadersAndBody - err: %v, body: %v, n: %v", err, body, n)
 	return err
 }
 
