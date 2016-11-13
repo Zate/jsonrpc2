@@ -289,8 +289,9 @@ func NewConn(ctx context.Context, conn io.ReadWriteCloser, h Handler, opt ...Con
 	for _, opt := range opt {
 		opt(c)
 	}
-	go c.readMessages(ctx, bufio.NewReader(conn))
-	return c
+
+	c.readMessages(ctx, bufio.NewReader(conn))
+	return c;
 }
 
 // Close closes the JSON-RPC connection. The connection may not be
@@ -463,7 +464,7 @@ func (c *Conn) readMessages(ctx context.Context, r *bufio.Reader) {
 				c.onRecv(m.request, nil)
 			}
 			log.Printf("langserver-go: readMessages - m.request c.h.Handle - m.request: %+v", m.request)
-			go c.h.Handle(ctx, c, m.request)
+			c.h.Handle(ctx, c, m.request)
 			//// TODO: would be nice to be able to read result of c.h.Handle()...
 			// if err != nil {
 			// 	log.Printf("langserver-go: readMessages - c.h.Handle error - m.request: %+v, err: %v", m.request, err)
