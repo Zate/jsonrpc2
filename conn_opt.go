@@ -40,7 +40,14 @@ func LogMessages(log *log.Logger) ConnOpt {
 				reqMethods[req.ID] = req.Method
 				mu.Unlock()
 
-				params, _ := json.Marshal(req.Params)
+				params, err := json.Marshal(req.Params)
+				if err != nil {
+					// log.Printf("OnRecv - req: %+v: req.Params: %+v, err: %v", req, resp, err)
+					mu.Lock()
+					delete(reqMethods, req.ID)
+					mu.Unlock()
+					return
+				}
 				if req.Notif {
 					log.Printf("--> notif: %s: %s", req.Method, params)
 				} else {

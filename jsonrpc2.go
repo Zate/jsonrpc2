@@ -287,7 +287,8 @@ func NewConn(ctx context.Context, conn io.ReadWriteCloser, h Handler, opt ...Con
 	for _, opt := range opt {
 		opt(c)
 	}
-	go c.readMessages(ctx, bufio.NewReader(conn))
+
+	c.readMessages(ctx, bufio.NewReader(conn))
 	return c
 }
 
@@ -450,7 +451,7 @@ func (c *Conn) readMessages(ctx context.Context, r *bufio.Reader) {
 			if c.onRecv != nil {
 				c.onRecv(m.request, nil)
 			}
-			go c.h.Handle(ctx, c, m.request)
+			c.h.Handle(ctx, c, m.request)
 
 		case m.response != nil:
 			resp := m.response
