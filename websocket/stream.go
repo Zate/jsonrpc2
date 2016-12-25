@@ -3,8 +3,6 @@
 package websocket
 
 import (
-	"io"
-	"bytes"
 	"bufio"
 
 	"github.com/gorilla/websocket"
@@ -14,7 +12,7 @@ import (
 // A ObjectStream is a jsonrpc2.ObjectStream that uses a WebSocket to
 // send and receive JSON-RPC 2.0 objects.
 type ObjectStream struct {
-	conn *websocket.Conn
+	conn  *websocket.Conn
 	codec jsonrpc2.ObjectCodec
 }
 
@@ -46,26 +44,15 @@ func (t ObjectStream) WriteObject(obj interface{}) (err error) {
 
 // ReadObject implements jsonrpc2.ObjectStream.
 func (t ObjectStream) ReadObject(v interface{}) (err error) {
-	// messageType, p , err := t.conn.ReadMessage()
-	_, p , err := t.conn.ReadMessage()
-	if err != nil {
-		return;
-	}
-
-	rd := bytes.NewReader(p)
-	r := bufio.NewReader(rd)
-	err = t.codec.ReadObject(r, v)
+	_, p, err := t.conn.NextReader()
 	if err != nil {
 		return
 	}
 
-	if e, ok := err.(*websocket.CloseError); ok {
-		if e.Code == websocket.CloseAbnormalClosure && e.Text == io.ErrUnexpectedEOF.Error() {
-			// Suppress a noisy (but harmless) log message by
-			// unwrapping this error.
-			err = io.ErrUnexpectedEOF
-			return
-		}
+	r := bufio.NewReader(p)
+	err = t.codec.ReadObject(r, v)
+	if err != nil {
+		return
 	}
 
 	return
